@@ -8,7 +8,7 @@ import HookModal from './HookModal';
 import TranslateModal from './TranslateModal';
 import Modal from './ui/Modal';
 import SegmentedControl from './ui/SegmentedControl';
-import WatermarkModal, { watermarkNoticeDismissed } from './WatermarkModal';
+
 import TikTokDraftNotice from './TikTokDraftNotice';
 import { useAuth } from '../contexts/AuthContext';
 import { renderInBrowser } from '../lib/renderInBrowser';
@@ -61,6 +61,44 @@ function formatDuration(clip) {
     const secs = Math.floor(clipDurationSeconds(clip));
     if (!Number.isFinite(secs) || secs < 0) return null;
     return `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`;
+}
+
+export function getClipDownloadFilename(clip, index) {
+    const raw = clip?.video_description_for_tiktok
+        || clip?.video_description_for_instagram
+        || clip?.video_title_for_youtube_short
+        || clip?.viral_hook_text
+        || clip?.title
+        || `clip-${index + 1}`;
+    let clean = String(raw)
+        .replace(/[\\/:*?"<>|\x00-\x1f]/g, '')
+        .replace(/[\r\n\t]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Ensure hashtags are always included
+    if (!clean.includes('#')) {
+        clean = `${clean} #shorts #viral`;
+    }
+
+    // Preserve hashtags even if caption text is long (safe limit ~200 chars for Windows/OS)
+    const MAX_LEN = 200;
+    if (clean.length > MAX_LEN) {
+        const hashIdx = clean.indexOf('#');
+        if (hashIdx > 0) {
+            const textPart = clean.slice(0, hashIdx).trim();
+            const tagsPart = clean.slice(hashIdx).trim();
+            const allowedTextLen = Math.max(30, MAX_LEN - tagsPart.length - 1);
+            let truncatedText = textPart.slice(0, allowedTextLen).replace(/\s+\S*$/, '').trim();
+            clean = `${truncatedText} ${tagsPart}`;
+        } else {
+            clean = clean.substring(0, MAX_LEN).replace(/\s+\S*$/, '').trim();
+        }
+    }
+
+    clean = clean.replace(/[.\s]+$/, '');
+    if (!clean) clean = `clip-${index + 1} #shorts #viral`;
+    return clean.endsWith('.mp4') ? clean : `${clean}.mp4`;
 }
 
 export default function ResultCard({ clip, index, jobId, durable, uploadPostKey, uploadUserId, geminiApiKey, elevenLabsKey, isManaged, onPlay, onPause, onBulkSubtitle, clipCount = 1, bulkProgress, initialState = null, onStateChange, connectedPlatforms = null, onConnectSocials, onEditClip = null, onReframeClip = null, onUpgrade = null }) {
@@ -151,7 +189,7 @@ export default function ResultCard({ clip, index, jobId, durable, uploadPostKey,
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = url;
-            a.download = `clip-${index + 1}.mp4`;
+            a.download = getClipDownloadFilename(clip, index);
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -1024,12 +1062,6 @@ export default function ResultCard({ clip, index, jobId, durable, uploadPostKey,
                     <button
                         onClick={(e) => {
                             e.preventDefault();
-                            // Free clips are watermarked — surface the upsell once
-                            // before the first download, then get out of the way.
-                            if (plan === 'free' && !watermarkNoticeDismissed(jobId)) {
-                                setShowWatermarkModal(true);
-                                return;
-                            }
                             downloadClip();
                         }}
                         className={`${QUIET_BTN}${onEditClip ? ' col-span-2' : ''}`}
@@ -1243,15 +1275,7 @@ export default function ResultCard({ clip, index, jobId, durable, uploadPostKey,
                 hasApiKey={!!elevenLabsKey}
             />
 
-            {showWatermarkModal && (
-                <WatermarkModal
-                    source="download"
-                    jobId={jobId}
-                    onUpgrade={onUpgrade}
-                    onClose={() => setShowWatermarkModal(false)}
-                    onContinue={downloadClip}
-                />
-            )}
+
 
         </div>
     );

@@ -37,35 +37,9 @@ export default function ProfileMenu({ onUpgrade = null }) {
             <p className="eyebrow">Signed in as</p>
             <p className="text-sm text-ink truncate mt-0.5" title={user.email}>{user.email}</p>
           </div>
-          {!isManaged && (
-            <button
-              onClick={() => { setOpen(false); window.location.hash = '#/pricing'; }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm lowercase text-brass hover:bg-paper3 transition-colors"
-            >
-              <Sparkles size={16} /> Start free
-            </button>
-          )}
-          {isManaged && plan === 'free' && (
-            <button
-              onClick={() => {
-                setOpen(false);
-                if (onUpgrade) onUpgrade({ source: 'menu' });
-                else window.location.hash = '#/pricing';
-              }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm lowercase text-brass hover:bg-paper3 transition-colors"
-            >
-              <Sparkles size={16} /> Upgrade · no watermark
-            </button>
-          )}
-          <button
-            onClick={() => { setOpen(false); window.location.hash = '#/account'; }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm lowercase text-ink2 hover:bg-paper3 transition-colors"
-          >
-            <CreditCard size={16} className="text-muted" /> Account &amp; billing
-          </button>
           <button
             onClick={() => { setOpen(false); logout(); }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm lowercase text-ink2 hover:bg-paper3 transition-colors border-t border-rule"
+            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm lowercase text-ink2 hover:bg-paper3 transition-colors"
           >
             <LogOut size={16} className="text-muted" /> Sign out
           </button>

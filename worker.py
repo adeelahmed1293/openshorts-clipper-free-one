@@ -223,7 +223,7 @@ def run_job(job_id, claim):
         log(f"{job_id}: rendering ({os.path.getsize(source) >> 20} MB source)")
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 env=job_env(info.get("env")), cwd=os.getcwd(),
-                                preexec_fn=(lambda: os.nice(NICE)) if NICE else None)
+                                preexec_fn=((lambda: os.nice(NICE)) if NICE else None) if sys.platform != "win32" else None)
         uploader = Uploader(job_id, claim, out_dir, skip=[source])
         pending, lock = [], threading.Lock()
 

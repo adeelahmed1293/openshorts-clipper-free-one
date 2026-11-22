@@ -48,6 +48,19 @@ def merge_continuation_words(words):
 
     Returns a new list; the input dicts are not mutated.
     """
+    if not words:
+        return []
+
+    # Defensive check: if words do NOT follow faster-whisper's leading-space convention
+    # (i.e. plain words where none or very few start with a space), merging on `not text.startswith(' ')`
+    # would collapse the entire transcript into a single word!
+    has_leading_spaces = any(
+        isinstance(w.get("word"), str) and w["word"].startswith(" ")
+        for w in words[:min(50, len(words))]
+    )
+    if not has_leading_spaces:
+        return [dict(w) for w in words]
+
     merged = []
     for word in words:
         text = word.get("word", "")
@@ -111,7 +124,8 @@ def _escape_ffmpeg_filter_value(value):
 
 
 def _normalize_subtitle_word(value):
-    return " ".join(str(value or "").split())
+    clean = re.sub(r'[\u200b-\u200d\ufeff]', '', str(value or ""))
+    return " ".join(clean.split())
 
 
 def transcribe_audio(video_path):
@@ -160,7 +174,16 @@ def _collect_word_blocks(transcript, clip_start, clip_end, max_chars=20, max_dur
     present, so the boundary signal survives).
     """
     flat_words = []
+    prev_seg_text = None
+    prev_seg_start = None
     for segment in transcript.get('segments', []):
+        seg_text = _normalize_subtitle_word(segment.get('text', ''))
+        seg_start = segment.get('start', 0)
+        # Deduplicate identical segments from rolling auto-captions
+        if prev_seg_text is not None and seg_text == prev_seg_text and abs(seg_start - prev_seg_start) < 0.25:
+            continue
+        prev_seg_text = seg_text
+        prev_seg_start = seg_start
         flat_words.extend(segment.get('words', []))
     flat_words = merge_continuation_words(flat_words)
 
@@ -170,10 +193,14 @@ def _collect_word_blocks(transcript, clip_start, clip_end, max_chars=20, max_dur
             cleaned_word = _normalize_subtitle_word(word_info.get('word', ''))
             if not cleaned_word:
                 continue
+            w_start = max(0, word_info['start'] - clip_start)
+            w_end = max(0, word_info['end'] - clip_start)
+            if words and words[-1]['word'] == cleaned_word and abs(words[-1]['start'] - w_start) < 0.05:
+                continue
             words.append({
                 'word': cleaned_word,
-                'start': max(0, word_info['start'] - clip_start),
-                'end': max(0, word_info['end'] - clip_start),
+                'start': w_start,
+                'end': w_end,
             })
 
     blocks = []

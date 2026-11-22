@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Download, Copy, Check, Play } from 'lucide-react';
+import { getClipDownloadFilename } from './ResultCard';
 
 export default function GalleryCard({ clip }) {
     const [copied, setCopied] = useState(null);
@@ -54,7 +55,8 @@ export default function GalleryCard({ clip }) {
             const a = document.createElement('a');
             a.style.display = 'none';
             a.href = url;
-            a.download = `clip_${clip.job_id}_${clip.index + 1}.mp4`;
+            const caption = clip.tiktok_desc || clip.insta_desc || clip.title;
+            a.download = getClipDownloadFilename({ video_description_for_tiktok: caption }, clip.index || 0);
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);

@@ -13,17 +13,9 @@ import ScheduleWeekModal from './components/ScheduleWeekModal';
 import ClipEditor from './components/ClipEditor';
 import ReframeEditor from './components/ReframeEditor';
 import UsageMeter from './components/UsageMeter';
-import TopUpModal from './components/TopUpModal';
-import WatermarkModal, { watermarkNoticeDismissed } from './components/WatermarkModal';
 import { getApiUrl } from './config';
-import StarBanner from './components/StarBanner';
-import PlanChoiceModal from './components/PlanChoiceModal';
 import ClipTutorial from './components/ClipTutorial';
-import OnboardingSurvey from './components/OnboardingSurvey';
-import TrialUpgradeModal from './components/TrialUpgradeModal';
 import LoginModal from './components/LoginModal';
-import TrialGate from './components/TrialGate';
-import AdvancedBanner from './components/AdvancedBanner';
 import HistoryTab from './components/HistoryTab';
 import AutopilotTab from './components/AutopilotTab';
 import ProfileMenu from './components/ProfileMenu';
@@ -1190,7 +1182,7 @@ function App() {
         auto_hook: data.autoHook ? '1' : '0',
         auto_hook_style: data.autoHook ? (data.autoHookStyle || 'pill') : null,
         // 'auto' is the server default, so only a deliberate choice travels.
-        layouts: data.layout && data.layout !== 'auto' ? data.layout : null,
+        layouts: data.layout || 'auto',
         // Set when the user took the quota wall's "clip the first N minutes"
         // offer: the server reserves N minutes and cuts the source to them.
         max_minutes: data.maxMinutes || null,
@@ -1321,6 +1313,17 @@ function App() {
     handleProcessRef.current(pending.data);
   }, [billingEnabled, isSignedIn]);
 
+  const handleCancel = async () => {
+    if (jobId) {
+      try {
+        await apiFetch(`/api/cancel/${jobId}`, { method: 'POST' });
+      } catch (e) {
+        console.error("Cancel failed:", e);
+      }
+    }
+    handleReset();
+  };
+
   const handleReset = () => {
     setJobGone(false);
     // Flush any pending edit-state sync before dropping the project: the clips
@@ -1351,14 +1354,8 @@ function App() {
   // wraps to two lines in a 5-up bar on a 360px phone.
   const navItems = [
     { id: 'dashboard', ord: '01', icon: LayoutDashboard, label: 'Clip Generator', short: 'clips', primary: true },
-    // Cloud only: it runs on the managed pipeline and the Upload-Post connection.
-    ...(billingEnabled ? [{ id: 'autopilot', ord: '02', icon: Rocket, label: 'Autopilot', short: 'autopilot', isNew: true }] : []),
-    { id: 'saasshorts', ord: '03', icon: Sparkles, label: 'AI Shorts', short: 'ai shorts', byok: true, primary: true },
-    { id: 'ai-agent', ord: '04', icon: Bot, label: 'AI Agent', short: 'agent', byok: true },
-    { id: 'ugc-gallery', ord: '05', icon: LayoutGrid, label: 'UGC Gallery', short: 'gallery', primary: true },
-    { id: 'thumbnails', ord: '06', icon: Image, label: 'YouTube Studio', short: 'studio', primary: true },
-    ...(billingEnabled && isSignedIn ? [{ id: 'history', ord: '07', icon: History, label: 'History', short: 'history' }] : []),
-    { id: 'settings', ord: '08', icon: Settings, label: 'Settings', short: 'settings' },
+    { id: 'thumbnails', ord: '02', icon: Image, label: 'YouTube Studio', short: 'studio', primary: true },
+    { id: 'settings', ord: '03', icon: Settings, label: 'Settings', short: 'settings' },
   ];
   const activeNav = navItems.find((n) => n.id === activeTab);
 
@@ -1378,44 +1375,7 @@ function App() {
   };
   const tabLocked = (id) => tutorialLock && id !== 'dashboard';
 
-  // Shared footer links (landing, repo, pricing, contact) — same list in the
-  // desktop rail and the mobile drawer, so they can never drift apart.
-  const NavFooterLinks = ({ collapsed = false }) => (
-    <>
-      <a
-        href="#landing"
-        className="flex items-center gap-2 px-3 py-2 text-xs lowercase text-muted hover:text-ink2 transition-colors"
-      >
-        <Globe size={14} className="shrink-0" />
-        <span className={collapsed ? 'hidden lg:block truncate' : 'truncate'}>landing page</span>
-      </a>
-      <a
-        href="https://github.com/mutonby/openshorts"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 px-3 py-2 text-xs lowercase text-muted hover:text-ink2 transition-colors"
-      >
-        <svg height="14" viewBox="0 0 16 16" version="1.1" width="14" aria-hidden="true" fill="currentColor" className="shrink-0"><path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
-        <span className={collapsed ? 'hidden lg:block truncate' : 'truncate'}>open source</span>
-      </a>
-      {billingEnabled && (
-        <a
-          href="#/pricing"
-          className="flex items-center gap-2 px-3 py-2 text-xs lowercase text-muted hover:text-ink2 transition-colors"
-        >
-          <Sparkles size={14} className="shrink-0" />
-          <span className={collapsed ? 'hidden lg:block truncate' : 'truncate'}>plans &amp; pricing</span>
-        </a>
-      )}
-      <a
-        href="mailto:info@openshorts.app"
-        className="flex items-center gap-2 px-3 py-2 text-xs lowercase text-muted hover:text-ink2 transition-colors"
-      >
-        <Mail size={14} className="shrink-0" />
-        <span className={collapsed ? 'hidden lg:block truncate' : 'truncate'}>info@openshorts.app</span>
-      </a>
-    </>
-  );
+
 
   // Desktop rail: icon-only from md, labelled from lg. Below md it is gone
   // entirely — an unlabelled 80px rail ate a fifth of a phone screen.
@@ -1455,10 +1415,6 @@ function App() {
           );
         })}
       </nav>
-
-      <div className="p-4 border-t border-rule space-y-1">
-        <NavFooterLinks collapsed />
-      </div>
     </div>
   );
 
@@ -1518,10 +1474,6 @@ function App() {
             );
           })}
         </nav>
-
-        <div className="px-3 py-3 border-t border-rule space-y-0.5 safe-bottom shrink-0">
-          <NavFooterLinks />
-        </div>
       </div>
     </div>
   );
@@ -1723,11 +1675,7 @@ function App() {
           </div>
         )}
 
-        {/* Included tools (Clip Generator, YouTube Studio): non-blocking trial prompt. */}
-        {gateThisTab && <TrialGate toolName={TOOL_NAMES[activeTab] || 'this'} />}
 
-        {/* Advanced tools (AI Shorts, AI Agent): BYOK fal.ai + ElevenLabs notice. */}
-        {advancedThisTab && <AdvancedBanner needsPlan={needsPlan} onKeys={() => goToTab('settings')} />}
 
         {/* Main Workspace */}
         <div className="flex-1 overflow-hidden relative">
@@ -2216,12 +2164,24 @@ function App() {
                     <Activity className={`text-brass ${status === 'processing' ? 'animate-pulse' : ''}`} size={18} />
                     Live Analysis
                   </h2>
-                  <span className={status === 'processing' ? 'badge-brass' :
-                    status === 'complete' ? 'badge-ok' :
-                      'badge-danger'
-                    }>
-                    {status.toUpperCase()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {status === 'processing' && (
+                      <button
+                        type="button"
+                        onClick={handleCancel}
+                        className="px-2.5 py-1 text-xs rounded border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer font-medium"
+                        title="Cancel this running job"
+                      >
+                        Cancel Job
+                      </button>
+                    )}
+                    <span className={status === 'processing' ? 'badge-brass' :
+                      status === 'complete' ? 'badge-ok' :
+                        'badge-danger'
+                      }>
+                      {status.toUpperCase()}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Trimmed run: say it while it renders, not only once the
@@ -2303,13 +2263,7 @@ function App() {
                   </div>
                 )}
 
-                {/* The render is dead time: the user is watching a progress bar
-                    with nothing to do, so this is where the one star ask goes. */}
-                {status === 'processing' && (
-                  <div className="my-3">
-                    <StarBanner message="Got a minute while this renders?" />
-                  </div>
-                )}
+
 
                 {/* Logs Terminal */}
                 <div className={`bg-paper rounded-card border border-rule overflow-hidden flex flex-col transition-all duration-500 ${status === 'complete' ? `min-h-0 opacity-50 hover:opacity-100 ${logsVisible ? 'h-32' : 'h-auto'}` : `flex-1 ${logsVisible ? 'min-h-[160px] sm:min-h-[200px]' : 'min-h-0 flex-none'}`}`}>
@@ -2722,7 +2676,7 @@ function App() {
         />
       )}
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} queued={typeof peekPendingJob()?.data?.payload === 'string'} />}
-      {showSurvey && <OnboardingSurvey onDone={() => setSurveyDone(true)} />}
+
       {tutorialPhase && !showSurvey && (
         <ClipTutorial
           phase={tutorialPhase}
@@ -2733,36 +2687,7 @@ function App() {
           onDismissCelebrate={finishTutorial}
         />
       )}
-      {showPlanChoice && <PlanChoiceModal onClose={() => setShowPlanChoice(false)} />}
-      {showWmNotice && (
-        <WatermarkModal
-          source="results"
-          jobId={jobId}
-          previewSrc={results?.clips?.[0]?.video_url ? getApiUrl(results.clips[0].video_url) : null}
-          onUpgrade={openUpsell}
-          onClose={() => setShowWmNotice(false)}
-        />
-      )}
-      {showTopUp && (
-        <TopUpModal
-          onClose={() => setShowTopUp(false)}
-          required={topUpInfo.required}
-          remaining={topUpInfo.remaining}
-          partialMinutes={topUpInfo.partialMinutes}
-          onPartial={topUpInfo.onPartial}
-          context={topUpInfo.context || 'wall'}
-          source={topUpInfo.source}
-          highlight={topUpInfo.highlight}
-          partialJob={topUpInfo.partialJob}
-        />
-      )}
-      {showTrialUpgrade && (
-        <TrialUpgradeModal
-          plan={plan}
-          onActivated={refreshMe}
-          onClose={() => setShowTrialUpgrade(false)}
-        />
-      )}
+
     </div>
   );
 }

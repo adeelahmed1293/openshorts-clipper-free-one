@@ -1,0 +1,21 @@
+{
+  "settings_version": "0.0.6",
+  "datasets_dir": "C:\\Users\\adeel\\Desktop\\datasets",
+  "weights_dir": "C:\\Users\\adeel\\Desktop\\openshorts\\weights",
+  "runs_dir": "C:\\Users\\adeel\\Desktop\\openshorts\\runs",
+  "uuid": "dec77b2740233c5f35bdefa5d4b2bd4a7ad1ba0f5d5bd12322ed36c3f6de8812",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "hub": true,
+  "mlflow": true,
+  "neptune": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

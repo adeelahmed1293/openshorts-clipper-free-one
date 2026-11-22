@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link2, Upload, FileVideo, X, Info, Loader2, ChevronDown } from 'lucide-react';
+import { Link2, Upload, FileVideo, X, Info, Loader2, ChevronDown, Scissors } from 'lucide-react';
 import { track } from '../lib/analytics';
 import { getApiUrl } from '../config';
 import SourceCost from './SourceCost';
@@ -41,6 +41,8 @@ export default function MediaInput({ onProcess, isProcessing }) {
     const [acknowledged, setAcknowledged] = useState(false);
     // {start, end} in seconds when the user picked a stretch under the cost line.
     const [range, setRange] = useState(null);
+    const [clipRangeStart, setClipRangeStart] = useState('');
+    const [clipRangeEnd, setClipRangeEnd] = useState('');
     const [outputFormat, setOutputFormat] = useState('vertical'); // vertical | horizontal | square
     const [showInfo, setShowInfo] = useState(false);
     // Advanced generation controls — empty string means "let the AI decide",
@@ -120,6 +122,22 @@ export default function MediaInput({ onProcess, isProcessing }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!acknowledged) return;
+
+        const parseTimeInput = (v) => {
+            if (!v) return null;
+            const str = String(v).trim();
+            if (str.includes(':')) {
+                const parts = str.split(':').map(Number);
+                if (parts.length === 3 && !parts.some(isNaN)) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+                if (parts.length === 2 && !parts.some(isNaN)) return parts[0] * 60 + parts[1];
+            }
+            const n = Number(str);
+            return Number.isFinite(n) ? n : null;
+        };
+
+        const parsedStart = parseTimeInput(clipRangeStart);
+        const parsedEnd = parseTimeInput(clipRangeEnd);
+
         const advanced = {
             targetClips: targetClips || null,
             clipMinSeconds: clipMinSeconds || null,
@@ -127,8 +145,8 @@ export default function MediaInput({ onProcess, isProcessing }) {
             autoHook,
             autoHookStyle,
             layout,
-            sourceStart: range ? Math.round(range.start) : null,
-            sourceEnd: range ? Math.round(range.end) : null,
+            sourceStart: parsedStart ?? (range ? Math.round(range.start) : null),
+            sourceEnd: parsedEnd ?? (range ? Math.round(range.end) : null),
         };
         try {
             localStorage.setItem('os_auto_hook', autoHook ? '1' : '0');
@@ -303,6 +321,50 @@ export default function MediaInput({ onProcess, isProcessing }) {
                     </div>
                 </div>
 
+                {/* Clip only this part (Time Range Picker) */}
+                <div className="mt-5 p-3.5 rounded-card bg-paper2 border border-rule">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-ink flex items-center gap-1.5">
+                            <Scissors size={14} className="text-brass" />
+                            Clip only this part (Optional Time Range)
+                        </span>
+                        {(clipRangeStart || clipRangeEnd) && (
+                            <button
+                                type="button"
+                                onClick={() => { setClipRangeStart(''); setClipRangeEnd(''); }}
+                                className="text-[11px] text-muted hover:text-ink underline cursor-pointer"
+                            >
+                                Reset Range
+                            </button>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <p className="eyebrow mb-1 text-[10px]">Start Time (e.g. 00:10:00)</p>
+                            <input
+                                type="text"
+                                value={clipRangeStart}
+                                onChange={(e) => setClipRangeStart(e.target.value)}
+                                placeholder="00:00:00"
+                                className="input-field text-xs py-1.5 font-mono"
+                            />
+                        </div>
+                        <div>
+                            <p className="eyebrow mb-1 text-[10px]">End Time (e.g. 00:40:00)</p>
+                            <input
+                                type="text"
+                                value={clipRangeEnd}
+                                onChange={(e) => setClipRangeEnd(e.target.value)}
+                                placeholder="00:30:00"
+                                className="input-field text-xs py-1.5 font-mono"
+                            />
+                        </div>
+                    </div>
+                    <p className="text-[11px] text-muted mt-2 leading-relaxed">
+                        Specify start &amp; end time to process only a section of long videos or livestreams.
+                    </p>
+                </div>
+
                 {/* Advanced generation controls — collapsed by default; blank = AI decides */}
                 <div className="mt-4">
                     <button
@@ -363,8 +425,8 @@ export default function MediaInput({ onProcess, isProcessing }) {
                                     aria-label="vertical layout"
                                 >
                                     <option value="auto">Auto (AI picks per video)</option>
-                                    <option value="split">Two speakers stacked</option>
-                                    <option value="screencast">Screen over presenter</option>
+                                    <option value="screencast">Screen over presenter (Gaming / Streamer)</option>
+                                    <option value="split">Two speakers stacked (Podcast / Interview)</option>
                                     <option value="none">Single crop only</option>
                                 </select>
                             </div>

@@ -48,11 +48,9 @@ def clip_count_targets(n_windows):
     import os
 
     n = max(1, int(n_windows or 1))
-    # Floor grows with the material: 3 windows -> 3, 5 -> 4, 10+ -> 6.
-    low = max(2, min(6, n // 2 + 2))
-    # Ceiling allows a rich window to yield more than one without inviting padding.
-    high = min(12, max(4, n * 2))
-    low = min(low, high)
+    # Generous clip targets: allows extracting as many viral clips as the video holds
+    low = max(3, n)
+    high = max(low + 5, n * 3)
 
     def _override(name, current):
         raw = os.environ.get(name)
@@ -70,16 +68,12 @@ def clip_count_targets(n_windows):
 
 def shortlist_target(video_duration):
     """How many scored windows the detail pass should get.
-
-    Scales with duration so a long video surfaces more candidates without
-    exploding the detail call, floored at 3 so a short one still gets a
-    choice. ``score_batches`` exists to make this number reachable.
-    """
+    Scales generously with duration so long videos surface all candidates."""
     try:
         seconds = float(video_duration or 0)
     except (TypeError, ValueError):
         seconds = 0.0
-    return max(3, min(10, int(seconds // 90) + 2))
+    return max(5, int(seconds // 60) + 5)
 
 
 def score_batches(windows, batch_size):
@@ -204,12 +198,10 @@ def clip_duration_bounds():
         except ValueError:
             return default
 
-    lo = _read("CLIP_MIN_SECONDS", 15.0)
-    hi = _read("CLIP_MAX_SECONDS", 60.0)
-    lo = min(max(lo, 5.0), 175.0)
-    hi = min(max(hi, 10.0), 180.0)
-    if hi < lo + 5.0:  # keep a real band: degenerate ranges starve the model
-        hi = min(180.0, lo + 5.0)
+    lo = _read("CLIP_MIN_SECONDS", 20.0)
+    hi = _read("CLIP_MAX_SECONDS", 180.0)
+    lo = max(1.0, lo)
+    hi = max(lo + 2.0, hi)
     return round(lo, 3), round(hi, 3)
 
 
@@ -283,18 +275,13 @@ def build_transcript_windows(transcript_result, video_duration,
     return windows
 
 
-def dedupe_overlapping(shorts, ratio=0.25):
-    """Drop clips that overlap an already-kept clip by ``ratio`` of the
-    shorter one, keeping the higher ``predicted_score`` (earlier on a tie).
+def dedupe_overlapping(shorts, ratio=None, max_overlap_seconds=1.0):
+    """Drop clips that overlap an already-kept clip, keeping the higher
+    ``predicted_score`` (earlier on a tie).
 
-    0.25, not 0.5: two clips sharing 25 s of 59 s (42%) both survived the old
-    bar and the same punchline came out twice in one batch.
-
-    The detail prompt's DIVERSITY rule is the only thing that stopped two
-    clips from sharing the same seconds, and a rule is not a guarantee: two
-    picks from one window can cover the same moment with different edges,
-    and the user then downloads the same short twice. Survivors come back in
-    transcript order, like ``trim_to_best``.
+    Guarantees no two clips share footage: any overlap greater than
+    ``max_overlap_seconds`` (1.0s, or the given ``ratio``) is rejected.
+    Survivors come back in transcript order.
     """
     def _score(c):
         try:
@@ -317,16 +304,21 @@ def dedupe_overlapping(shorts, ratio=0.25):
             os_, oe = _span(other)
             overlap = min(e, oe) - max(s, os_)
             shorter = max(1e-6, min(e - s, oe - os_))
-            if overlap > 0 and overlap / shorter >= ratio:
-                clash = True
-                break
+            if overlap > max_overlap_seconds:
+                if ratio is not None:
+                    if overlap / shorter >= ratio:
+                        clash = True
+                        break
+                else:
+                    clash = True
+                    break
         if not clash:
             kept.append((idx, clip))
     return [c for _, c in sorted(kept, key=lambda p: p[0])]
 
 
 def snap_clip_to_words(start, end, words, video_duration,
-                       min_duration=15.0, max_duration=60.0,
+                       min_duration=3.0, max_duration=180.0,
                        search_window=1.5, max_lead=0.35, max_tail=0.45):
     """
     Snap Gemini-proposed clip boundaries onto real word boundaries plus a bit

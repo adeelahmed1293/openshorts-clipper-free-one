@@ -78,7 +78,7 @@ VALID = set(DECISION_FLAGS)
 # "none", and every two-shot rendered GENERAL, two small people floating in a
 # blurred strip. On such a podcast the per-scene check stacks the 39 s two-shot
 # and leaves the close-ups on TRACK.
-PER_SCENE_FLAGS = ["split_layout", "active_speaker"]
+PER_SCENE_FLAGS = ["split_layout", "active_speaker", "screencast_layout"]
 
 
 def _module_flags(decision):

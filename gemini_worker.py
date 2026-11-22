@@ -77,8 +77,7 @@ TIME CONTRACT — STRICT:
 - Timestamps in ABSOLUTE SECONDS from the start (usable with ffmpeg -ss/-to).
 - Only numbers with up to 3 decimals (e.g. 0, 12.5, 47.250).
 - 0 <= start < end <= {video_duration}.
-- Each clip {min_secs:g} to {max_secs:g} seconds long. If the whole video is
-  shorter than {min_secs:g}s, return one clip spanning the full video.
+- Duration Strategy: Most clips (65-75%) should be over 1 minute (60s to 120s+) to capture the full visual sequence, action, and payoff, while some can be punchy 20–30s highlights.
 - Cut on visual scene changes, never mid-motion.
 
 For each clip write catchy copy in {language} (a scroll-stopping hook, a TikTok
@@ -150,16 +149,8 @@ Pick ONE layout:
   music, and any footage whose meaning survives a centre crop. Corner logos,
   score bugs, subscriber counters, lower-thirds and burned-in subtitles do NOT
   change this: they are decoration, and losing them costs nothing.
-- "screencast": keep the screen. ONLY when the video is built around a screen
-  recording, slides, a spreadsheet, a chart or a map that the viewer must read
-  to follow it. If you cannot read words or numbers off the screen that matter
-  to the point being made, it is not this.
-  (A "camera_inset" option was added here and removed on 31-jul-2026. Whether a
-  webcam is composited into a corner of that screen is not something the model
-  can see: on the five clips that have one it answered "screencast" every time,
-  in both runs, while overall accuracy fell from 92% to 83-85%. camera_inset.py
-  finds the same five geometrically with no false positives, so that question is
-  answered downstream instead of being asked here.)
+- "screencast": keep the screen. Choose this when the video is a gameplay / streamer video with a facecam or webcam in a corner, or when the video is built around a screen recording, slides, a spreadsheet, a tutorial, a chart or a map that fills the screen. This routes to the stacked layout (gameplay/screen on top, streamer/presenter below).
+  (Whether a webcam/facecam is composited into a corner of that screen or gameplay is handled by camera_inset.py downstream, so selecting screencast here ensures streamer gameplay gets properly reframed.)
 - "split": stack two people. ONLY when two people are visible IN THE SAME SHOT
   at the same time in most frames, talking to each other. Frames that alternate
   between one-person close-ups are NOT this, however many people appear.
@@ -299,7 +290,11 @@ Choose the BEST short clips from these shortlisted candidate windows.
 
 CLIP RULES:
 - Return only valid JSON.
-- Each clip must be {min_secs:g} to {max_secs:g} seconds long, in absolute seconds from the start of the source video.
+- DURATION & LENGTH STRATEGY:
+  * YOU decide the exact duration for each clip based on its content completeness.
+  * MAJORITY of the clips (at least 65–75%) MUST BE OVER 1 MINUTE (60s to 120s, up to 180s): provide full context, complete explanations, detailed storytelling, and full conversational or narrative arcs.
+  * SOME CLIPS (around 25–35%) can be punchy and short (20–30 seconds): for quick standalone jokes, high-energy highlights, sharp reactions, or single punchy tips.
+  * Never cut mid-sentence or cut off the punchline/payoff; let the complete thought dictate the exact start and end.
 - Stay within the candidate window boundaries.
 - THE 2-SECOND RULE: the clip MUST open on its strongest moment. If the first
   2 seconds would not stop a cold viewer from scrolling, move the start or skip the clip.
@@ -322,10 +317,7 @@ CLIP RULES:
   above let you skip a weak clip; they are not a licence to return one clip and
   stop. Only fall short of {min_clips} when the material truly does not hold
   them, and never pad with a clip you would not publish yourself.
-- DIVERSITY: never return two clips that make the same point, tell the same
-  story, or land the same joke — even across different windows. Pick the
-  stronger one and drop the other. Two clips on the same broad topic are fine
-  as long as each lands its own moment.
+- DIVERSITY & NO OVERLAPS: Never return two clips that overlap in time or cover the same moment. Each clip MUST have completely unique, non-overlapping start and end times (e.g. if one clip is from 00:10:45 to 00:12:00, do NOT pick another clip that falls between 00:10:45 and 00:12:00 or overlaps with it). Every clip must be a distinct, independent viral moment. Never pad or duplicate footage across clips.
 
 HOOK PLAYBOOK — pick the strongest fitting pattern for `viral_hook_text` (max 10 words):
 - Open question: "Why does everyone get this wrong?"

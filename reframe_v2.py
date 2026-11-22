@@ -749,7 +749,7 @@ def render(input_video, final_output_video, aspect_ratio, content_ranges=None,
     # five clips that had one, while camera_inset.detect finds all five with no
     # false positives. The box is fixed for the whole video, so it is found once.
     inset = None
-    if content_ranges and screencast_layout.ENABLED:
+    if screencast_layout.ENABLED or os.environ.get("AUTO_LAYOUT", "0") in ("1", "auto") or os.environ.get("AUTO_LAYOUT") is None:
         try:
             inset = camera_inset.detect(input_video)
         except Exception as e:
@@ -762,9 +762,23 @@ def render(input_video, final_output_video, aspect_ratio, content_ranges=None,
     insets = {}
     wide_count = 0
     inset_count = 0
+
+    if inset:
+        for scene_idx, (start_f, end_f) in enumerate(scene_boundaries):
+            if camera_inset.present_in_scene(input_video, inset, start_f, end_f) or strategies[scene_idx] == 'GENERAL':
+                strategies[scene_idx] = 'INSET'
+                insets[start_f] = inset
+                splits.pop(start_f, None)
+                inset_count += 1
+        if inset_count:
+            print(f"   🎮 GAMING / STREAMER INSET layout applied on {inset_count} scene(s)")
+
     if content_ranges:
         for scene_idx, (plan, centre) in screencast_layout.detect_screencast_scenes(
                 input_video, scenes, strategies, content_ranges).items():
+            start_f, end_f = scene_boundaries[scene_idx]
+            if start_f in insets:
+                continue
             # An inset beats both screen plans: it is the only one that can show
             # the screen whole AND the person at a readable size. But only on
             # the scenes the camera is actually in: the box is found once per
