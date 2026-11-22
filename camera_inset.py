@@ -393,63 +393,95 @@ MAX_CAMERA_RATIO = 0.40
 
 
 def inset_filtergraph(orig_w, orig_h, out_w, out_h, box, camera_ratio=None):
-    """Screen on top at full width, the webcam inset below.
+    """Separate the streamer webcam and the game action cleanly into stacked panels.
 
-    The screen keeps its whole width, which is the point: a game HUD or a
-    desktop puts what matters at the edges. The inset is scaled up so the person
-    reads at a size the source never gave them.
-
-    The camera band takes its height from the INSET'S OWN aspect ratio rather
-    than a fixed share of the frame. A fixed share was tried first and stretched
-    every face sideways: a 16:9 inset forced into a 2:1 band is a 12% horizontal
-    stretch, and it is immediately visible on a face.
+    1. The camera inset is cropped tightly around the detected webcam box and scaled up.
+    2. The gameplay screen is cropped to the central action region WITHOUT the webcam,
+       ensuring the streamer is NOT duplicated inside the game footage.
+    3. The two panels are stacked vertically (game on top, streamer on bottom, or vice versa
+       based on the original webcam's vertical corner), filling the 9:16 frame cleanly.
     """
     box_w = max(2, box[2])
     box_h = max(2, box[3])
+    bx, by, bw, bh = box
 
+    # 1. Camera band height: proportional to webcam aspect, typically 35-42% of out_h
     if camera_ratio is not None:
         cam_h = int(out_h * camera_ratio)
     else:
         cam_h = int(round(out_w * box_h / float(box_w)))
-    cam_h = min(cam_h, int(out_h * MAX_CAMERA_RATIO))
+    cam_h = min(int(out_h * 0.44), max(int(out_h * 0.32), cam_h))
     cam_h -= cam_h % 2
 
-    screen_h = int(round(out_w * orig_h / float(orig_w)))
-    screen_h -= screen_h % 2
-    screen_h = max(2, min(screen_h, out_h - cam_h - 2))
+    # 2. Game band takes the rest of the canvas height
+    game_h = out_h - cam_h
+    game_h -= game_h % 2
 
-    # Widen (or heighten) the crop to the band's aspect so the scale below is
-    # uniform. Clamped to the frame, so an inset hard against an edge simply
-    # keeps whatever it can reach.
-    target_aspect = out_w / float(cam_h)
-    x, y, w, h = box
-    if w / float(h) < target_aspect:
-        want_w = min(orig_w, int(round(h * target_aspect)))
-        x = int(round(x + w / 2.0 - want_w / 2.0))
-        w = want_w
+    # 3. Camera Crop (cw, ch, cx, cy):
+    # Widen or heighten box to match target camera band aspect (out_w / cam_h)
+    target_cam_aspect = out_w / float(cam_h)
+    if bw / float(bh) < target_cam_aspect:
+        want_w = min(orig_w, int(round(bh * target_cam_aspect)))
+        cx = int(round(bx + bw / 2.0 - want_w / 2.0))
+        cw = want_w
+        cy = by
+        ch = bh
     else:
-        want_h = min(orig_h, int(round(w / target_aspect)))
-        y = int(round(y + h / 2.0 - want_h / 2.0))
-        h = want_h
-    x = max(0, min(x, orig_w - w))
-    y = max(0, min(y, orig_h - h))
+        want_h = min(orig_h, int(round(bw / target_cam_aspect)))
+        cy = int(round(by + bh / 2.0 - want_h / 2.0))
+        ch = want_h
+        cx = bx
+        cw = bw
+    cx = max(0, min(cx, orig_w - cw))
+    cy = max(0, min(cy, orig_h - ch))
+    cw -= cw % 2
+    ch -= ch % 2
+    cx -= cx % 2
+    cy -= cy % 2
 
-    w -= w % 2
-    h -= h % 2
-    x -= x % 2
-    y -= y % 2
+    # 4. Game Crop (gw, gh, gx, gy):
+    # Crop the game to fill out_w x game_h WITHOUT including the webcam
+    target_game_aspect = out_w / float(game_h)
+    gh = orig_h
+    gw = int(round(gh * target_game_aspect))
+    if gw > orig_w:
+        gw = orig_w
+        gh = int(round(gw / target_game_aspect))
+    gw -= gw % 2
+    gh -= gh % 2
+    gy = max(0, (orig_h - gh) // 2)
+    gy -= gy % 2
 
-    filler_h = out_h - screen_h - cam_h
+    corner_h, corner_v = nearest_corner(box, orig_w, orig_h)
+    default_gx = (orig_w - gw) // 2
+
+    if corner_h == "right":
+        # Webcam is on the right side -> game crop must end BEFORE the webcam begins
+        if default_gx + gw > bx:
+            gx = max(0, bx - 10 - gw)
+        else:
+            gx = default_gx
+    else:
+        # Webcam is on the left side -> game crop must start AFTER the webcam ends
+        if default_gx < bx + bw:
+            gx = min(orig_w - gw, bx + bw + 10)
+        else:
+            gx = default_gx
+
+    gx = max(0, min(gx, orig_w - gw))
+    gx -= gx % 2
+
+    # 5. Vertical stacking:
+    # If webcam was at the top of the original video, place camera on top and game below.
+    # If webcam was at the bottom (most common), place game on top and camera below.
+    if corner_v == "top":
+        stack_filter = f"[cam][game]vstack=inputs=2,pad={out_w}:{out_h}:0:0,setsar=1[v]"
+    else:
+        stack_filter = f"[game][cam]vstack=inputs=2,pad={out_w}:{out_h}:0:0,setsar=1[v]"
 
     return (
-        f"[0:v]split=3[bga][sa][ca];"
-        # Blurred backdrop so the leftover strip is not a black bar. Scaled by
-        # HEIGHT: scaling a 16:9 source to 1080 wide gives 608 tall, and there
-        # is no 1920-tall crop to take out of that.
-        f"[bga]{blurred_backdrop(out_w, out_h, 14)}[bg];"
-        f"[sa]scale={out_w}:{screen_h}[screen];"
-        f"[ca]crop=w={w}:h={h}:x={x}:y={y},scale={out_w}:{cam_h}[cam];"
-        f"[bg][screen]overlay=x=0:y={filler_h // 2}[withscreen];"
-        f"[withscreen][cam]overlay=x=0:y={filler_h // 2 + screen_h},"
-        f"setsar=1[v]"
+        f"[0:v]split=2[ga][ca];"
+        f"[ga]crop=w={gw}:h={gh}:x={gx}:y={gy},scale={out_w}:{game_h}:flags=lanczos[game];"
+        f"[ca]crop=w={cw}:h={ch}:x={cx}:y={cy},scale={out_w}:{cam_h}:flags=lanczos[cam];"
+        f"{stack_filter}"
     )

@@ -102,7 +102,7 @@ def normalise(ranges):
 
 def split_ranges(ranges):
     """(start, end) pairs of the stretches where captions belong on the seam."""
-    return [(r["start"], r["end"]) for r in normalise(ranges) if r["layout"] == "split"]
+    return [(r["start"], r["end"]) for r in normalise(ranges) if r["layout"] in ("split", "inset")]
 
 
 def in_split(t, splits):

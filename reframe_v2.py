@@ -931,7 +931,7 @@ def render(input_video, final_output_video, aspect_ratio, content_ranges=None,
                 graph = (
                     f"[0:v]sendcmd=f='{escape_filter_value(cmd_path)}',"
                     f"crop@c={init},"
-                    f"scale={out_w}:{out_h},setsar=1[v]"
+                    f"scale={out_w}:{out_h}:flags=lanczos,setsar=1[v]"
                 )
             specs.append((ss, dur, graph, boxes))
 

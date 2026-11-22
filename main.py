@@ -902,9 +902,16 @@ def download_clip_section(url, output_path, start, end):
     dl_opts = {
         'quiet': False,
         'noprogress': True,
-        'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
+        'extractor_args': {'youtube': {'player_client': ['default', 'mweb', 'android', 'ios']}},
         'download_ranges': download_range_func(None, [(float(start), float(end))]),
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': (
+            'bestvideo[height>=1440]+bestaudio/'
+            'bestvideo[vcodec^=avc1][height>=1080]+bestaudio[ext=m4a]/'
+            'bestvideo[height>=1080]+bestaudio/'
+            'bestvideo+bestaudio/'
+            'best[height>=1080]/'
+            'best'
+        ),
         'outtmpl': f"{stem}.%(ext)s",
         'merge_output_format': 'mp4',
         'overwrites': True
@@ -1025,11 +1032,12 @@ def _download_youtube_video(url, output_dir=".", on_audio=None, allow_paid=True,
             return ('bestvideo[vcodec^=avc1][height<=720][ext=mp4]+bestaudio[ext=m4a]/'
                     'bestvideo[vcodec^=avc1][height<=720]+bestaudio/'
                     'best[height<=720][ext=mp4]/best[height<=720]/best')
-        return ('bestvideo[vcodec^=avc1][height<=1080][ext=mp4]+bestaudio[ext=m4a]/'
-                'bestvideo[vcodec^=avc1][height<=1080]+bestaudio/'
-                'bestvideo[height<=1080]+bestaudio/'
-                'bestvideo[height<=720]+bestaudio/'
-                'best[height<=1080][ext=mp4]/best[ext=mp4]/best')
+        return ('bestvideo[height>=1440]+bestaudio/'
+                'bestvideo[vcodec^=avc1][height>=1080][ext=mp4]+bestaudio[ext=m4a]/'
+                'bestvideo[vcodec^=avc1][height>=1080]+bestaudio/'
+                'bestvideo[height>=1080]+bestaudio/'
+                'bestvideo+bestaudio/'
+                'best[height>=1080][ext=mp4]/best[ext=mp4]/best')
 
     def _base_opts(extractor_args, proxy, cookies=True):
         return {
